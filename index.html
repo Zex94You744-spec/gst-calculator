@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="manifest.json" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indian GST Calculator (Mobile + Dark Mode)</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --text: #111;
+      --border: #ddd;
+      --accent: #007bff;
+      --accent-hover: #0056b3;
+    }
+    .dark-mode {
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --text: #f0f0f0;
+      --border: #444;
+      --accent: #0d6efd;
+      --accent-hover: #0b5ed7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+      padding-bottom: 80px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 520px;
+      margin: 16px auto;
+      border-radius: 10px;
+      background: var(--card-bg);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 16px;
+      font-size: 1.4em;
+    }
+    .field {
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card-bg);
+      color: var(--text);
+    }
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+    .radio-group label {
+      margin-bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 11px 12px;
+      margin-top: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--accent-hover); }
+    .result {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      font-size: 15px;
+    }
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .result-value {
+      font-weight: 600;
+    }
+    .copy-btn {
+      font-size: 13px;
+      padding: 4px 6px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .copy-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .theme-toggle {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      padding: 8px 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 100;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<script>
+  // PWA service worker registration
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/service-worker.js")
+        .then((registration) =>
+          console.log("PWA registered with scope:", registration.scope)
+        )
+        .catch((error) =>
+          console.error("PWA registration failed:", error)
+        );
+    });
+  }
+</script>
+<body class="light-mode">
+  <button class="theme-toggle" id="themeToggle">🌙 Dark Mode</button>
+
+  <div class="container">
+    <h2>Indian GST Calculator</h2>
+
+    <!-- Exclusive / Inclusive toggle -->
+    <div class="field">
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="mode" id="exclusive" value="exclusive" checked />
+          Price without GST
+        </label>
+        <label>
+          <input type="radio" name="mode" id="inclusive" value="inclusive" />
+          Total with GST
+        </label>
+      </div>
+    </div>
+
+    <!-- Amount input -->
+    <div class="field">
+      <label id="amountLabel">Amount (without GST, ₹)</label>
+      <input type="number" id="amount" placeholder="Enter amount without GST" />
+    </div>
+
+    <div class="field">
+      <label>Enter GST rate (%)</label>
+      <input type="number" id="rate" placeholder="e.g. 18" value="18" />
+    </div>
+
+    <!-- Tax type (CGST/SGST vs IGST) -->
+    <div class="field">
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="taxType" id="cgstSgst" value="cgstSgst" checked />
+          CGST + SGST (Intra‑state)
+        </label>
+        <label>
+          <input type="radio" name="taxType" id="igst" value="igst" />
+          IGST (Inter‑state)
+        </label>
+      </div>
+    </div>
+
+    <button onclick="calculate()">Calculate GST</button>
+
+    <div class="result">
+      <div class="result-item">
+        <span>Base price (without GST):</span>
+        <div>
+          <span id="basePrice">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('basePrice')">Copy</button>
+        </div>
+      </div>
+      <div class="result-item">
+        <span>GST amount:</span>
+        <div>
+          <span id="gst">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('gst')">Copy</button>
+        </div>
+      </div>
+      <div class="result-item">
+        <span>Total (with GST):</span>
+        <div>
+          <span id="total">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('total')">Copy</button>
+        </div>
+      </div>
+      <div class="result-item">
+        <span>CGST:</span>
+        <div>
+          <span id="cgst">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('cgst')">Copy</button>
+        </div>
+      </div>
+      <div class="result-item">
+        <span>SGST:</span>
+        <div>
+          <span id="sgst">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('sgst')">Copy</button>
+        </div>
+      </div>
+      <div class="result-item">
+        <span>IGST:</span>
+        <div>
+          <span id="igstAmount">0.00</span> ₹
+          <button class="copy-btn" onclick="copyText('igstAmount')">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // — Theme toggle (dark / light) —
+    const themeBtn = document.getElementById("themeToggle");
+    const body = document.body;
+
+    // Remember user preference
+    if (localStorage.getItem("darkMode") === "true") {
+      body.classList.add("dark-mode");
+      themeBtn.textContent = "☀️ Light Mode";
+    } else {
+      themeBtn.textContent = "🌙 Dark Mode";
+    }
+
+    function toggleTheme() {
+      const isDark = body.classList.contains("dark-mode");
+      body.classList.toggle("dark-mode");
+      localStorage.setItem("darkMode", !isDark);
+      themeBtn.textContent = isDark ? "🌙 Dark Mode" : "☀️ Light Mode";
+    }
+    themeBtn.addEventListener("click", toggleTheme);
+
+    // — Update labels on mode change —
+    function updateLabels() {
+      const isExclusive = document.getElementById("exclusive").checked;
+      const labelEl = document.getElementById("amountLabel");
+      const amountEl = document.getElementById("amount");
+
+      if (isExclusive) {
+        labelEl.textContent = "Amount (without GST, ₹)";
+        amountEl.placeholder = "Enter amount without GST";
+      } else {
+        labelEl.textContent = "Total amount (with GST, ₹)";
+        amountEl.placeholder = "Enter total with GST";
+      }
+      calculate();
+    }
+
+    document.getElementById("exclusive").addEventListener("change", updateLabels);
+    document.getElementById("inclusive").addEventListener("change", updateLabels);
+    document.getElementById("rate").addEventListener("input", calculate);
+    document.getElementById("amount").addEventListener("input", calculate);
+
+    // — Main GST calculation —
+    function calculate() {
+      const amount = parseFloat(document.getElementById("amount").value) || 0;
+      const rate = parseFloat(document.getElementById("rate").value) || 0;
+      const isExclusive = document.getElementById("exclusive").checked;
+      const isCgstSgst = document.getElementById("cgstSgst").checked;
+
+      let base, gst, total;
+
+      if (isExclusive) {
+        base = amount;
+        gst = amount * rate / 100;
+        total = amount + gst;
+      } else {
+        total = amount;
+        base = total / (1 + rate / 100);
+        gst = total - base;
+      }
+
+      let cgst = 0, sgst = 0, igst = 0;
+
+      if (isCgstSgst) {
+        cgst = gst / 2;
+        sgst = gst / 2;
+        igst = 0;
+      } else {
+        cgst = 0;
+        sgst = 0;
+        igst = gst;
+      }
+
+      document.getElementById("basePrice").textContent = base.toFixed(2);
+      document.getElementById("gst").textContent = gst.toFixed(2);
+      document.getElementById("total").textContent = total.toFixed(2);
+      document.getElementById("cgst").textContent = cgst.toFixed(2);
+      document.getElementById("sgst").textContent = sgst.toFixed(2);
+      document.getElementById("igstAmount").textContent = igst.toFixed(2);
+    }
+
+    // — Copy button logic —
+    function copyText(id) {
+      const el = document.getElementById(id);
+      const value = el.textContent.trim();
+      if (!value) return;
+
+      // Prefer modern Clipboard API
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(value + " ₹")
+          .then(() => {
+            const btn = event.target;
+            btn.textContent = "✅";
+            setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+          })
+          .catch(err => console.error("Copy failed:", err));
+      } else {
+        // Fallback: execCommand (older browsers)
+        const tmp = document.createElement("textarea");
+        tmp.value = value + " ₹";
+        tmp.style.position = "absolute";
+        tmp.style.left = "-9999px";
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+        const btn = event.target;
+        btn.textContent = "✅";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+      }
+    }
+
+    // Initialize on load
+    window.addEventListener("DOMContentLoaded", () => {
+      calculate();
+    });
+  </script>
+</body>
+</html>
